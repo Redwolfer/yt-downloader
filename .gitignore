@@ -1,0 +1,4 @@
+# .gitignore
+
+# Ignore notebooks folder
+notebooks/
