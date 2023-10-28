@@ -59,13 +59,9 @@ Replace [URL] with the actual YouTube video URL.
 ### Project Structure
 ```
 youtube_downloader/
-├── notebooks/
-│   └── youtube_downloader.ipynb
 ├── src/
 │   ├── __init__.py
 │   └── yt-downloader.py
-├── videos/
-├── audios/
 ├── requirements.txt
 └── README.md
 ```
