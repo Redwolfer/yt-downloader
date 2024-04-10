@@ -1,0 +1,4 @@
+url_list: ../lists/download.txt
+output_path_mp4: ../outputs/mp4
+output_path_mp3: ../outputs/mp3
+output_path_wav: ../outputs/wav
