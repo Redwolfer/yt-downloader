@@ -1,3 +1,5 @@
-pytube
-moviepy
-pyyaml
+tdqm
+pytubefix
+pydub
+numpy
+matplotlib
