@@ -6,13 +6,19 @@ This script downloads a YouTube video as either audio or video.
 Audio files are converted to MP3 format after downloading.
 
 Usage:
-    python yt_downloader.py <url> [--type {audio,video}] [--output_dir OUTPUT_DIR]
+    python download.py <url> [--type {audio,video}] [--output_dir OUTPUT_DIR]
+
+There is also a web interface available via ``server.py`` for searching and
+downloading videos.
 """
 
 import os
 import re
-import argparse
 import sys
+import argparse
+import tempfile
+from typing import Optional
+
 from tqdm import tqdm
 
 # Ensure the required module is available.
@@ -31,31 +37,39 @@ except ImportError:
 
 
 class YouTubeDownloader:
+    """Download YouTube videos as audio or video."""
+
     def __init__(self, url: str, media_type: str = "audio", output_dir: str = "outputs"):
-        """
-        Initialize the downloader with a YouTube URL, media type, and output directory.
-        """
         self.url = url
         self.media_type = media_type.lower()
         self.output_dir = os.path.join(output_dir, self.media_type)
         os.makedirs(self.output_dir, exist_ok=True)
+
         self.yt = YouTube(self.url)
-        self.title = self.sanitize_filename(self.yt.title)
+        self.title = self._sanitize_filename(self.yt.title)
 
     @staticmethod
-    def sanitize_filename(name: str) -> str:
+    def _sanitize_filename(name: str) -> str:
         """
         Sanitize the video title to create a safe filename.
         """
         return re.sub(r'[\\/*?:"<>|]', "", name)
 
-    def _on_progress(self, download_bar: tqdm):
-        """
-        Returns a callback function to update the progress bar.
-        """
-        def callback(stream, chunk, bytes_remaining):
-            download_bar.update(len(chunk))
-        return callback
+    def _download_stream(self, stream, filename: str) -> Optional[str]:
+        """Download a stream with a progress bar and return the file path."""
+        if not stream:
+            return None
+
+        desc = f"Downloading: {self.title}"
+        with tqdm(total=stream.filesize, unit="B", unit_scale=True, desc=desc) as bar:
+            def progress(_stream, chunk, _remaining):
+                bar.update(len(chunk))
+
+            self.yt.register_on_progress_callback(progress)
+            stream.download(output_path=self.output_dir, filename=filename)
+            self.yt.register_on_progress_callback(None)
+
+        return os.path.join(self.output_dir, filename)
 
     def download(self):
         """
@@ -70,20 +84,19 @@ class YouTubeDownloader:
         """
         Download the audio stream and convert it to MP3.
         """
-        stream = self.yt.streams.filter(only_audio=True).order_by('abr').desc().first()
+        stream = (
+            self.yt.streams.filter(only_audio=True).order_by("abr").desc().first()
+        )
         if not stream:
             print("No audio stream available.")
             return
 
-        filesize = stream.filesize
-        download_bar = tqdm(total=filesize, unit='B', unit_scale=True,
-                            desc=f"Downloading: {self.title}")
-        self.yt.register_on_progress_callback(self._on_progress(download_bar))
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".m4a", dir=self.output_dir) as tmp:
+            temp_filepath = self._download_stream(stream, os.path.basename(tmp.name))
 
-        temp_filename = "temp.m4a"
-        temp_filepath = os.path.join(self.output_dir, temp_filename)
-        stream.download(output_path=self.output_dir, filename=temp_filename)
-        download_bar.close()
+        if not temp_filepath:
+            print("Failed to download audio stream.")
+            return
 
         # Convert downloaded audio to MP3
         try:
@@ -94,11 +107,10 @@ class YouTubeDownloader:
             return
 
         duration_sec = len(sound) / 1000.0
-        conversion_bar = tqdm(total=duration_sec, unit='sec', desc="Converting audio")
         final_audio_path = os.path.join(self.output_dir, f"{self.title}.mp3")
-        sound.export(final_audio_path, format="mp3", bitrate="128k")
-        conversion_bar.update(duration_sec)
-        conversion_bar.close()
+        with tqdm(total=duration_sec, unit="sec", desc="Converting audio") as bar:
+            sound.export(final_audio_path, format="mp3", bitrate="128k")
+            bar.update(duration_sec)
 
         os.remove(temp_filepath)
         print(f"Audio downloaded and converted to: {final_audio_path}")
@@ -112,17 +124,12 @@ class YouTubeDownloader:
             print("No video stream available.")
             return
 
-        filesize = stream.filesize
-        download_bar = tqdm(total=filesize, unit='B', unit_scale=True,
-                            desc=f"Downloading: {self.title}")
-        self.yt.register_on_progress_callback(self._on_progress(download_bar))
-
         video_filename = f"{self.title}.mp4"
-        video_filepath = os.path.join(self.output_dir, video_filename)
-        stream.download(output_path=self.output_dir, filename=video_filename)
-        download_bar.close()
-
-        print(f"Video downloaded as: {video_filepath}")
+        video_filepath = self._download_stream(stream, video_filename)
+        if video_filepath:
+            print(f"Video downloaded as: {video_filepath}")
+        else:
+            print("Failed to download video stream.")
 
 
 def parse_args():
