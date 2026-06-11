@@ -1,4 +1,30 @@
-/outputs
-/inputs
-/.venv
+# Virtual Environment (Sangat penting agar folder local python env tidak ter-push)
+/venv/
+/.venv/
+env/
+ENV/
+
+# Python Cache
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# PyInstaller / Executable Builds
+/build/
+/dist/
+*.spec
+
+# User Output / Temporary Files
+/outputs/
+/inputs/
+*.log
+tmp*
+
+# IDE / Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
